@@ -1,0 +1,356 @@
+blueprint:
+  name: Movie Mode Light Control
+  author: Murat Çeşmecioğlu
+  description: >
+    # 🎥 Movie Mode Light Control
+    
+    Turns off selected lights/switches when watching a movie after a certain time. Sends a notification asking to enable movie mode. Restores light states on pause or stop.
+    
+    
+    Simple.
+    
+    
+    Required Input = *
+    
+    
+    Read  more: https://community.home-assistant.io/t/movie-mode-light-control/886100
+  domain: automation
+  source_url: https://github.com/muratcesmecioglu/ha-movie-mode/blob/main/movie-mode.yaml
+  input:
+    media_player:
+      name: Media Player *
+      description: Media player that triggers movie mode (e.g., your TV)
+      selector:
+        entity:
+          domain: media_player
+    
+    trigger_on_state:
+          name: Playing State Trigger *
+          description: >
+            Select one or more trigger states from the dropdown to start the automation.
+            If the state you need isn’t shown, just type it manually and hit Enter.
+          default: []
+          selector:
+            select:
+              multiple: true
+              custom_value: true
+              options:
+                - label: ON.
+                  value: "on"
+                - label: Playing
+                  value: "playing"
+    
+    trigger_pause_state:
+          name: Paused State Trigger *
+          description: >
+            Select one or more trigger states from the dropdown to pause the automation.
+            If the state you need isn’t shown, just type it manually and hit Enter.
+          default: []
+          selector:
+            select:
+              multiple: true
+              custom_value: true
+              options:
+                - label: OFF.
+                  value: "off"
+                - label: Idle
+                  value: "idle"
+                - label: Paused
+                  value: "paused"
+                - label: Standby
+                  value: "standby"
+    
+    trigger_off_state:
+          name: Off State Trigger *
+          description: >
+            Select one or more trigger states from the dropdown to stop the automation.
+            If the state you need isn’t shown, just type it manually and hit Enter.
+          default: []
+          selector:
+            select:
+              multiple: true
+              custom_value: true
+              options:
+                - label: OFF.
+                  value: "off"
+                - label: Idle
+                  value: "idle"
+                - label: Paused
+                  value: "paused"
+                - label: Standby
+                  value: "standby"
+    
+    app_cond:
+          name: App Select (Optional)
+          description: >
+            If you select one or more app that used in the media player (example: Youtube, Stremio, Cloudstream etc.) the automation will works only on these app.
+            If you can't find your app in this list, just type it manually and hit enter.
+          default: []
+          selector:
+            select:
+              multiple: true
+              custom_value: true
+              sort: true
+              options:
+                - label: Stremio
+                  value: com.stremio.one
+                - label: SmartTube
+                  value: com.teamsmart.videomanager.tv
+                - label: com.lagradost.cloudstream3
+                  value: Cloudstream
+                - label: Amazon Prime (MiBox)
+                  value: Prime Video
+                - label: Netflix
+                  value: Netflix
+                - label: Plex (Chromecast TV)
+                  value: Plex
+                - label: YouTube (Chromecast TV)
+                  value: YouTube
+                - label: YouTube TV (Chromecast TV)
+                  value: YouTube TV
+                - label: PlayStation - Game
+                  value: game
+                - label: Amazon Prime (Apple TV)
+                  value: com.amazon.aiv.AIVApp
+                - label: Apple TV & TV+
+                  value: com.apple.TVWatchList
+                - label: HBO Max (Apple TV)
+                  value: com.wbd.stream
+                - label: MLB (Apple TV)
+                  value: com.mlb.AtBatUniversal
+                - label: NBA (Apple TV)
+                  value: com.nbaimd.gametime.universal
+                - label: Netflix (Apple TV)
+                  value: com.netflix.Netflix
+                - label: NFL (Apple TV)
+                  value: com.nfl.gamecenter
+                - label: Plex (Apple TV)
+                  value: com.plexapp.plex
+                - label: Rumble (Apple TV)
+                  value: com.rumble.battles
+                - label: YouTube (Apple TV)
+                  value: com.google.ios.youtube
+                - label: YouTube TV (Apple TV)
+                  value: com.google.ios.youtubeunplugged
+
+    movie_mode_helper:
+      name: Movie Mode Helper *
+      description: >
+        Select a input boolean helper that tracks whether movie mode is active.
+      default: input_boolean.movie_mode_active
+      selector:
+        entity:
+          domain: input_boolean
+
+    notify_target:
+      name: Notification Target
+      description: Notification service to send the prompt (e.g., mobile_app_yourphone)
+      selector:
+        text:
+
+    controlled_entities:
+      name: Lights/Switches to Control *
+      description: >
+        These lights or switches will be turned off during movie mode and restored after.
+        **! Important !** - You can only use entities. Others are not supported.
+      default: []
+      selector:
+        target:
+          entity:
+            domain: 
+              - light
+              - switch
+
+    start_time:
+      name: Earliest Activation Time
+      description: >
+        Movie mode will only trigger after this time.
+      default: "21:00:00"
+      selector:
+        time:
+
+    notify_title:
+      name: Notification Title
+      default: "Movie Mode"
+      selector:
+        text:
+
+    notify_message:
+      name: Notification Message
+      default: "Turn on Movie Mode?"
+      selector:
+        text:
+
+mode: restart
+
+variables:
+    controlled_entities: !input controlled_entities
+    notify_target: !input notify_target
+    light_entities: "{{ expand(controlled_entities.entity_id) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list }}"
+    switch_entities: "{{ expand(controlled_entities.entity_id) | selectattr('domain', 'eq', 'switch') | map(attribute='entity_id') | list }}"
+    notify_device: "notify.{{ notify_target }}"
+    app_cond: !input app_cond
+    media_player: !input media_player
+
+trigger:
+  - trigger: state
+    id: "t_play"
+    entity_id: !input media_player
+    to: !input trigger_on_state
+    
+  - trigger: state
+    id: "t_pause"
+    entity_id: !input media_player
+    to: !input trigger_pause_state
+    
+  - trigger: state
+    id: "t_off"
+    entity_id: !input media_player
+    to: !input trigger_off_state
+    
+condition:
+  - condition: or
+    conditions:
+      # Bu koşul yalnızca `t_off` tetikleyicisi için geçerli olmayacak
+      - condition: template
+        value_template: "{{ trigger.id == 't_off' or (app_cond == [] or state_attr(media_player, 'app_id') in app_cond or state_attr(media_player, 'app_name') in app_cond or state_attr(media_player, 'media_content_type') in app_cond) }}"
+  
+action:
+  - choose:
+      # Start playing → Ask for movie mode
+      - conditions:
+          - condition: trigger
+            id: 't_play'
+          - condition: time
+            after: !input start_time
+          - condition: state
+            entity_id: !input movie_mode_helper
+            state: 'off'
+        sequence:
+          - choose:
+            # If notify_target is set → send notification and wait for response
+            - conditions:
+                - condition: template
+                  value_template: "{{ notify_target != '' }}"
+              sequence:
+                - service: "{{ notify_device }}"
+                  data:
+                    title: !input notify_title
+                    message: !input notify_message
+                    data:
+                      actions:
+                        - action: "ENABLE_MOVIE_MODE"
+                          title: "Enable"
+                        - action: "IGNORE"
+                          title: "Ignore"
+        
+                - wait_for_trigger:
+                    - platform: event
+                      event_type: mobile_app_notification_action
+                      event_data:
+                        action: "ENABLE_MOVIE_MODE"
+                  timeout:
+                    minutes: 2
+        
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ wait.trigger is defined and wait.trigger.event.data.action == "ENABLE_MOVIE_MODE" }}
+                      sequence:
+                        - service: light.turn_off
+                          data:
+                            entity_id: "{{ light_entities }}"
+                        - service: switch.turn_off
+                          data:
+                            entity_id: "{{ switch_entities }}"
+                        - service: input_boolean.turn_on
+                          target:
+                            entity_id: !input movie_mode_helper
+        
+            # If no notify_target → activate movie mode immediately
+            - conditions:
+                - condition: template
+                  value_template: "{{ notify_target == '' }}"
+              sequence:
+                - service: light.turn_off
+                  data:
+                    entity_id: "{{ light_entities }}"
+                - service: switch.turn_off
+                  data:
+                    entity_id: "{{ switch_entities }}"
+                - service: input_boolean.turn_on
+                  target:
+                    entity_id: !input movie_mode_helper
+
+          
+          
+          
+          
+          
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >
+                      {{ wait.trigger is defined and wait.trigger.event.data.action == "ENABLE_MOVIE_MODE" }}
+                sequence:
+                  # Turn off all lights/switches
+                  - service: light.turn_off
+                    data:
+                      entity_id: "{{ light_entities }}"
+                  - service: switch.turn_off
+                    data:
+                      entity_id: "{{ switch_entities }}"
+                  # Set movie mode ON
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: !input movie_mode_helper
+
+      # Handle paused → restore
+      - conditions:
+          - condition: trigger
+            id: 't_pause'
+          - condition: state
+            entity_id: !input movie_mode_helper
+            state: 'on'
+        sequence:
+          - service: light.turn_on
+            data:
+              entity_id: "{{ light_entities }}"
+          - service: switch.turn_on
+            data:
+              entity_id: "{{ switch_entities }}"
+
+  # Handle resumed → turn off lights
+      - conditions:
+          - condition: trigger
+            id: 't_play'
+          - condition: state
+            entity_id: !input movie_mode_helper
+            state: 'on'
+        sequence:
+          - service: light.turn_off
+            data:
+              entity_id: "{{ light_entities }}"
+          - service: switch.turn_off
+            data:
+              entity_id: "{{ switch_entities }}"
+
+  # Handle stop → restore and end movie mode
+      - conditions:
+          - condition: trigger
+            id: 't_off'
+          - condition: state
+            entity_id: !input movie_mode_helper
+            state: 'on'
+        sequence:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: !input movie_mode_helper
+          - service: light.turn_on
+            data:
+              entity_id: "{{ light_entities }}"
+          - service: switch.turn_on
+            data:
+              entity_id: "{{ switch_entities }}"
