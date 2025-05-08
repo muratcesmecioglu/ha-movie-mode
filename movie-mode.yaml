@@ -145,6 +145,7 @@ blueprint:
     notify_target:
       name: Notification Target
       description: Notification service to send the prompt (e.g., mobile_app_yourphone)
+      default: ''
       selector:
         text:
 
